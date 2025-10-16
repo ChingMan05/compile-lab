@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TEST_DIR="../Test"
+TEST_DIR="../SampleTest"
 
 PARSER="./parser" 
 

@@ -592,14 +592,38 @@ Type Exp(Node* root) {
             Type pre = Exp(root->children[0]);
             if (pre != NULL) {
                 if (pre->kind != ENUM_ARRAY) {
-                    printf("Error type 10 at line %d: Expect an array before [...].\n", root->lineno);
+                    // 尝试获取变量名用于更精确的错误信息
+                    Node* expNode = root->children[0];
+                    if (strcmp(expNode->children[0]->name, "ID") == 0 && expNode->childNum == 1) {
+                        // 如果是简单的ID访问，输出变量名
+                        printf("Error type 10 at line %d: \"%s\" is not an array.\n", 
+                               root->lineno, expNode->children[0]->strVal);
+                    } else {
+                        // 否则输出通用错误信息
+                        printf("Error type 10 at line %d: Expect an array before [...].\n", root->lineno);
+                    }
                     return NULL;
                 }
                 Type index = Exp(root->children[2]);
                 if (index == NULL || index->kind != ENUM_BASIC || index->basic != INT_TYPE) {
-                    printf("Error type 12 at line %d: Expect an integer in [...].\n", root->lineno);
-				    return NULL;
+                    // 获取下标表达式的原始字符串值
+                    char indexStr[32] = "";
+                    if (strcmp(root->children[2]->children[0]->name, "FLOAT") == 0) {
+                        sprintf(indexStr, "%g", root->children[2]->children[0]->floatVal);
+                        printf("Error type 12 at line %d: \"%s\" is not an integer.\n", 
+                            root->lineno, indexStr);
+                    } 
+                    else if (strcmp(root->children[2]->children[0]->name, "ID") == 0) {
+                        printf("Error type 12 at line %d: \"%s\" is not an integer.\n", 
+                            root->lineno, root->children[2]->children[0]->strVal);
+                    } 
+                    else {
+                        printf("Error type 12 at line %d: The index is not an integer.\n", 
+                            root->lineno);
+                    }
+                    return NULL;
                 }
+
                 return pre->array.elem;
             }
             return pre;
