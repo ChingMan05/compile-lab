@@ -145,7 +145,27 @@ int typeEqual(Type a, Type b) {
         return typeEqual(a->array.elem, b->array.elem);
     }
     // 判断结构体是否类型等价, （1）比较结构体元素类型是否相同 （2）比较结构体元素数量是否相同，满足（1）（2） 返回1，反之返回0
-    <FILL_IN_HERE>
+    else if (a->kind == ENUM_STRUCT) {
+        // 如果两个结构体的名字相同，直接判定为等价
+        if (strcmp(a->structure->name, b->structure->name) == 0) {
+            return 1;
+        }
+        
+        // 名字不同，则按照结构等价：比较字段类型和数量
+        FieldList aFields = a->structure->head;
+        FieldList bFields = b->structure->head;
+        while (aFields != NULL && bFields != NULL) {
+            if (!typeEqual(aFields->type, bFields->type)) {
+                return 0;
+            }
+            aFields = aFields->next;
+            bFields = bFields->next;
+        }
+        // 检查是否都遍历完（数量相同）
+        if (aFields != NULL || bFields != NULL)
+            return 0;
+        return 1;
+    }
     // 函数类型等价——返回类型、参数个数和参数类型等价
     else if (a->kind == ENUM_FUNC) {
         if (!typeEqual(a->func->returnType, b->func->returnType))
@@ -185,9 +205,19 @@ void Program(Node* root) {
 // 遍历symbolTable，实现对type 18 的检查, 检查函数是否只声明，未定义
 // Error type 18 at line %d: Undefined function \"%s\".\n"
 void check() {
-      <FILL_IN_HERE>
+    for (int i = 0; i < HASH_SIZE; i++) {
+        Entry tmp = symbolTable[i];
+        while (tmp != NULL) {
+            if (tmp->type != NULL && tmp->type->kind == ENUM_FUNC) {
+                if (tmp->type->func->hasDefined == 0) {
+                    printf("Error type 18 at line %d: Undefined function \"%s\".\n", 
+                           tmp->type->func->lineno, tmp->name);
+                }
+            }
+            tmp = tmp->hashNext;
+        }
+    }
 }
-
 void ExtDefList(Node* root) {
     if (root->childNum != 0) {
         ExtDef(root->children[0]);
@@ -239,7 +269,24 @@ void ExtDef(Node* root) {
             // "Error type 19 at line %d: Inconsistent declaration of function \"%s\".\n"
             // 如果不冲突，需要为已声明的函数添加定义
             if (sym->type->func->hasDefined == 0) {
-                      <FILL_IN_HERE>
+                // 检查类型是否一致
+                if (!typeEqual(newType, sym->type)) {
+                    // 声明不一致，报告 Error type 19
+                    printf("Error type 19 at line %d: Inconsistent declaration of function \"%s\".\n", 
+                        root->lineno, sym->name);
+                    return;
+                }
+                // 如果类型一致，且当前是函数定义（有函数体），则更新hasDefined标志
+                if (strcmp(root->children[2]->name, "CompSt") == 0) {
+                    sym->type->func->hasDefined = 1;
+                    pushLayer();
+                    CompSt(root->children[2], func->name, func->returnType);
+                    popLayer();
+                    return;
+                }
+                // 如果类型一致，且当前也是声明（无函数体），则不做处理，直接返回
+                // 因为符号表中已经有这个声明了，不需要重复插入
+                return;
             }
         }
         // 是首次出现的函数声明/定义
@@ -558,8 +605,50 @@ Type Exp(Node* root) {
             return pre;
         }
         // 赋值操作
-        else if (<FILL_IN_HERE>) {
-        <FILL_IN_HERE>
+        else if (strcmp(root->children[1]->name, "ASSIGNOP") == 0){
+        {
+    Node* left = root->children[0];
+    Type leftType = NULL;
+    
+    // 检查左值是否合法：变量、域、数组元素
+    if (strcmp(left->children[0]->name, "ID") == 0 && left->childNum == 1) {
+        // 情况1：变量
+        leftType = Exp(left);
+    }
+    else if (strcmp(left->children[0]->name, "Exp") == 0) {
+        if (strcmp(left->children[1]->name, "DOT") == 0) {
+            // 情况2：结构体域
+            leftType = Exp(left);
+        }
+        else if (strcmp(left->children[1]->name, "LB") == 0) {
+            // 情况3：数组元素
+            leftType = Exp(left);
+        }
+        else {
+            // 不合法的左值
+            printf("Error type 6 at line %d: The left-hand side of an assignment must be a variable.\n", 
+                   root->lineno);
+            return NULL;
+        }
+    }
+    else {
+        // 不合法的左值
+        printf("Error type 6 at line %d: The left-hand side of an assignment must be a variable.\n", 
+               root->lineno);
+        return NULL;
+    }
+    
+    // 检查右值类型
+    Type rightType = Exp(root->children[2]);
+    
+    // 类型匹配检查
+    if (leftType != NULL && rightType != NULL && !typeEqual(leftType, rightType)) {
+        printf("Error type 5 at line %d: Type mismatched for assignment.\n", root->lineno);
+        return NULL;
+    }
+    
+    return leftType;
+}
             // 对左侧表达式进行检查，确保是一个合法的左值, 左值合法的三种情况是
             // 1、变量
             // 2、域

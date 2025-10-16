@@ -1,0 +1,10 @@
+int func(int a);
+
+int fuc(int a)
+(
+    return 1;
+)
+
+int main()
+{
+}
